@@ -30,4 +30,8 @@ services:
       - DISABLE_ENTRY_POINT_V0_6=true
       # CORS configuration for frontend access
       - RPC_CORSDOMAIN=*
+      # Skip debug_traceCall (not supported by Tenderly)
+      - UNSAFE=true
+      # Handle rate limiting from Tenderly
+      - PROVIDER_RATE_LIMIT_RETRY_ENABLED=true
     restart: unless-stopped

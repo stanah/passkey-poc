@@ -8,7 +8,12 @@ import {
   type Address,
   keccak256,
   toBytes,
+  encodePacked,
+  concat,
+  pad,
+  toHex,
 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
 // Types for our passkey implementation
 interface StoredCredential {
@@ -37,6 +42,10 @@ const TENDERLY_CONFIG = {
 
 const ENTRYPOINT_ADDRESS_V07 =
   "0x0000000071727De22E5E9d8BAf0edAc6f37da032" as const;
+
+// SimpleAccountFactory for v0.7 (deployed on Sepolia)
+const SIMPLE_ACCOUNT_FACTORY =
+  "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985" as const;
 
 // Tenderly Virtual TestNet chain definition
 const tenderlyChain = {
@@ -165,7 +174,105 @@ function extractP256PublicKey(publicKeyBuffer: ArrayBuffer): {
   };
 }
 
-// Compute smart account address (simplified)
+// Compute smart account address from owner address and salt
+// This calls SimpleAccountFactory.getAddress(owner, salt) for correct CREATE2 address
+async function getSmartAccountAddressFromFactory(
+  ownerAddress: Address,
+  salt: bigint = 0n
+): Promise<Address> {
+  // SimpleAccountFactory.getAddress(address owner, uint256 salt) returns (address)
+  // Function selector: 0x8cb84e18
+  const saltHex = salt.toString(16).padStart(64, '0');
+  const callData = `0x8cb84e18${ownerAddress.slice(2).padStart(64, '0')}${saltHex}` as Hex;
+
+  const request = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "eth_call",
+    params: [
+      {
+        to: SIMPLE_ACCOUNT_FACTORY,
+        data: callData,
+      },
+      "latest",
+    ],
+  };
+
+  const response = await fetch(TENDERLY_CONFIG.rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const result = await response.json();
+  
+  if (result.error) {
+    throw new Error(`Failed to get account address: ${result.error.message}`);
+  }
+  
+  // Result is a 32-byte value, extract the address (last 20 bytes)
+  return `0x${result.result.slice(-40)}` as Address;
+}
+
+// Test private key for Hardhat default account (do not use in production!)
+const TEST_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as Hex;
+
+// Get UserOperation hash for signing
+// This follows ERC-4337 v0.7 hash calculation
+function getUserOperationHash(
+  userOp: any,
+  entryPoint: Address,
+  chainId: number
+): Hex {
+  // Pack the UserOp fields for v0.7
+  const packedUserOp = keccak256(
+    encodePacked(
+      ["address", "uint256", "bytes32", "bytes32", "bytes32", "uint256", "bytes32", "bytes32"],
+      [
+        userOp.sender as Address,
+        BigInt(userOp.nonce || "0x0"),
+        keccak256(userOp.factory && userOp.factoryData 
+          ? concat([userOp.factory as Hex, userOp.factoryData as Hex])
+          : "0x" as Hex),
+        keccak256(userOp.callData as Hex || "0x"),
+        concat([
+          pad(toHex(BigInt(userOp.verificationGasLimit || "0x0")), { size: 16 }),
+          pad(toHex(BigInt(userOp.callGasLimit || "0x0")), { size: 16 }),
+        ]),
+        BigInt(userOp.preVerificationGas || "0x0"),
+        concat([
+          pad(toHex(BigInt(userOp.maxPriorityFeePerGas || "0x0")), { size: 16 }),
+          pad(toHex(BigInt(userOp.maxFeePerGas || "0x0")), { size: 16 }),
+        ]),
+        keccak256(userOp.paymaster && userOp.paymasterData
+          ? concat([
+              userOp.paymaster as Hex,
+              pad(toHex(BigInt(userOp.paymasterVerificationGasLimit || "0x0")), { size: 16 }),
+              pad(toHex(BigInt(userOp.paymasterPostOpGasLimit || "0x0")), { size: 16 }),
+              userOp.paymasterData as Hex,
+            ])
+          : "0x" as Hex),
+      ]
+    )
+  );
+
+  // Final hash: keccak256(packedUserOp, entryPoint, chainId)
+  return keccak256(
+    encodePacked(
+      ["bytes32", "address", "uint256"],
+      [packedUserOp, entryPoint, BigInt(chainId)]
+    )
+  );
+}
+
+// Sign UserOperation with test private key
+async function signUserOperation(userOp: any, entryPoint: Address, chainId: number): Promise<Hex> {
+  const account = privateKeyToAccount(TEST_PRIVATE_KEY);
+  const hash = getUserOperationHash(userOp, entryPoint, chainId);
+  const signature = await account.signMessage({ message: { raw: hash } });
+  return signature;
+}
+
+// Fallback: compute address from public key hash (for display only)
 function computeSmartAccountAddress(publicKey: { x: Hex; y: Hex }): Address {
   const hash = keccak256(
     `0x${publicKey.x.slice(2)}${publicKey.y.slice(2)}` as Hex
@@ -435,38 +542,92 @@ export default function App() {
     addLog("Sending transaction via Bundler...", "info");
 
     try {
-      // Create a simple self-transfer (0 ETH to self) to test the flow
-      const targetAddress = smartAccountAddress;
-      const value = parseEther("0"); // 0 ETH transfer for testing
-
-      addLog(`Target: ${targetAddress}`, "info");
+      addLog(`Target: ${smartAccountAddress}`, "info");
       addLog(`Value: 0 ETH (test transaction)`, "info");
 
-      // Build UserOperation request
-      const userOpRequest = {
+      // First, get the current nonce from RPC
+      const nonceRequest = {
         jsonrpc: "2.0",
         id: 1,
-        method: "eth_sendUserOperation",
-        params: [
-          {
-            sender: smartAccountAddress,
-            nonce: "0x0",
-            initCode: "0x",
-            callData: "0x",
-            callGasLimit: "0x50000",
-            verificationGasLimit: "0x50000",
-            preVerificationGas: "0x50000",
-            maxFeePerGas: "0x3B9ACA00",
-            maxPriorityFeePerGas: "0x3B9ACA00",
-            paymasterAndData: "0x",
-            signature: "0x",
-          },
-          ENTRYPOINT_ADDRESS_V07,
-        ],
+        method: "eth_getTransactionCount",
+        params: [smartAccountAddress, "latest"],
+      };
+
+      const nonceResponse = await fetch(TENDERLY_CONFIG.rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nonceRequest),
+      });
+      const nonceResult = await nonceResponse.json();
+      addLog(`Nonce from RPC: ${nonceResult.result || "0x0"}`, "info");
+
+      // For PoC: Use a test EOA address as owner
+      // In production, this should be derived from passkey or use WebAuthn-compatible account
+      // Using a deterministic address for testing
+      const testOwnerAddress = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address; // Hardhat default account
+      const salt = 0n;
+      
+      // Get the correct sender address from factory
+      addLog(`Getting sender address from factory...`, "info");
+      const senderAddress = await getSmartAccountAddressFromFactory(testOwnerAddress, salt);
+      addLog(`Factory sender: ${senderAddress}`, "info");
+
+      // Build factoryData for first-time account deployment
+      // SimpleAccountFactory.createAccount(address owner, uint256 salt)
+      // Function selector: 0x5fbfb9cf
+      const saltHex = salt.toString(16).padStart(64, '0');
+      const factoryData = `0x5fbfb9cf${testOwnerAddress.slice(2).padStart(64, '0')}${saltHex}` as Hex;
+
+      addLog(`Factory: ${SIMPLE_ACCOUNT_FACTORY}`, "info");
+      addLog(`Owner: ${testOwnerAddress}`, "info");
+
+      // ERC-4337 v0.7 UserOperation format (without signature first)
+      const userOpWithoutSig = {
+        sender: senderAddress,  // Use address from factory
+        nonce: "0x0",
+        // v0.7 uses factory and factoryData for account deployment
+        factory: SIMPLE_ACCOUNT_FACTORY,
+        factoryData: factoryData,
+        callData: "0x",
+        // Gas limits
+        callGasLimit: "0x50000",
+        verificationGasLimit: "0x100000", 
+        preVerificationGas: "0x50000",
+        maxFeePerGas: "0x3B9ACA00",
+        maxPriorityFeePerGas: "0x3B9ACA00",
+        // No paymaster for now (user pays gas)
+        paymaster: null,
+        paymasterVerificationGasLimit: null,
+        paymasterPostOpGasLimit: null,
+        paymasterData: null,
+        signature: "0x" as Hex, // Placeholder
+      };
+
+      // Sign the UserOperation
+      addLog("Signing UserOperation...", "info");
+      const signature = await signUserOperation(
+        userOpWithoutSig,
+        ENTRYPOINT_ADDRESS_V07,
+        TENDERLY_CONFIG.chainId
+      );
+      addLog(`Signature: ${signature.slice(0, 30)}...`, "info");
+
+      // Add signature to UserOp
+      const userOp = {
+        ...userOpWithoutSig,
+        signature: signature,
       };
 
       addLog("Sending UserOperation to Bundler...", "info");
       addLog(`Bundler URL: ${TENDERLY_CONFIG.bundlerUrl}`, "info");
+
+      // Send UserOperation
+      const userOpRequest = {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_sendUserOperation",
+        params: [userOp, ENTRYPOINT_ADDRESS_V07],
+      };
 
       const response = await fetch(TENDERLY_CONFIG.bundlerUrl, {
         method: "POST",
@@ -477,6 +638,7 @@ export default function App() {
       });
 
       const result = await response.json();
+      addLog(`Bundler response: ${JSON.stringify(result).slice(0, 100)}...`, "info");
 
       if (result.error) {
         throw new Error(result.error.message || JSON.stringify(result.error));
