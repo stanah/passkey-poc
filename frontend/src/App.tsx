@@ -173,22 +173,27 @@ function computeSmartAccountAddress(publicKey: { x: Hex; y: Hex }): Address {
   return `0x${hash.slice(26)}` as Address;
 }
 
-// Credential storage
+// Credential storage - keys include chainId for multi-network support
+const getStorageKey = (key: string): string => {
+  return `passkey_credential_${TENDERLY_CONFIG.chainId}_${key}`;
+};
+
 const credentialStorage = {
   save(key: string, credential: StoredCredential): void {
-    localStorage.setItem(`passkey_credential_${key}`, JSON.stringify(credential));
+    localStorage.setItem(getStorageKey(key), JSON.stringify(credential));
   },
   load(key: string): StoredCredential | null {
-    const stored = localStorage.getItem(`passkey_credential_${key}`);
+    const stored = localStorage.getItem(getStorageKey(key));
     return stored ? JSON.parse(stored) : null;
   },
   remove(key: string): void {
-    localStorage.removeItem(`passkey_credential_${key}`);
+    localStorage.removeItem(getStorageKey(key));
   },
   list(): string[] {
+    const prefix = `passkey_credential_${TENDERLY_CONFIG.chainId}_`;
     return Object.keys(localStorage)
-      .filter((k) => k.startsWith("passkey_credential_"))
-      .map((k) => k.replace("passkey_credential_", ""));
+      .filter((k) => k.startsWith(prefix))
+      .map((k) => k.replace(prefix, ""));
   },
 };
 
