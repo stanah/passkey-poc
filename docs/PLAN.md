@@ -33,17 +33,17 @@ UserOperation送信機能をアップグレードし、実際のPasskey署名を
 ## Phase 1: 実装ステップ
 
 ### 1. 準備
-- [ ] `@account-kit/signer` のインストール
-- [ ] `.env` に `ALCHEMY_API_KEY` を追加
+- [x] `@account-kit/signer` のインストール
+- [x] `.env` に `ALCHEMY_API_KEY` を追加
 
 ### 2. Signerの実装
-- [ ] `AlchemyWeb3AuthSigner` の設定 (src/lib/signer.ts)
-- [ ] Passkey作成・認証UIの実装 (frontend/src/App.tsx)
-- [ ] `SmartAccountClient` にSignerを接続
+- [x] `AlchemyWeb3AuthSigner` の設定 (src/lib/signer.ts)
+- [x] Passkey作成・認証UIの実装 (frontend/src/App.tsx)
+- [x] `SmartAccountClient` にSignerを接続
 
 ### 3. トランザクション送信
-- [ ] テストEOA署名を `AlchemySigner` に置き換え
-- [ ] 動作確認（Send Transaction）
+- [x] テストEOA署名を `AlchemySigner` に置き換え
+- [x] 動作確認（Send Transaction）
 
 ## Phase 2: 実装ステップ（将来）
 

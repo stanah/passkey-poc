@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   createPublicClient,
   http,
@@ -18,6 +18,7 @@ import {
   getUserOperationHash as viemGetUserOperationHash,
   entryPoint07Address,
 } from "viem/account-abstraction";
+import { AlchemyWebSigner } from "@account-kit/signer";
 
 // Types for our passkey implementation
 interface StoredCredential {
@@ -268,43 +269,7 @@ function getUserOperationHash(
   );
 }
 
-// Sign UserOperation with test private key
-// Uses viem's getUserOperationHash for correct v0.7 hash calculation
-async function signUserOperation(userOp: any, entryPoint: Address, chainId: number): Promise<Hex> {
-  const account = privateKeyToAccount(TEST_PRIVATE_KEY);
-  
-  // Use viem's getUserOperationHash for correct v0.7 format
-  const hash = viemGetUserOperationHash({
-    userOperation: {
-      sender: userOp.sender as Address,
-      nonce: BigInt(userOp.nonce || "0x0"),
-      factory: userOp.factory as Address | undefined,
-      factoryData: userOp.factoryData as Hex | undefined,
-      callData: userOp.callData as Hex,
-      callGasLimit: BigInt(userOp.callGasLimit || "0x0"),
-      verificationGasLimit: BigInt(userOp.verificationGasLimit || "0x0"),
-      preVerificationGas: BigInt(userOp.preVerificationGas || "0x0"),
-      maxFeePerGas: BigInt(userOp.maxFeePerGas || "0x0"),
-      maxPriorityFeePerGas: BigInt(userOp.maxPriorityFeePerGas || "0x0"),
-      paymaster: userOp.paymaster as Address | undefined,
-      paymasterVerificationGasLimit: userOp.paymasterVerificationGasLimit 
-        ? BigInt(userOp.paymasterVerificationGasLimit) 
-        : undefined,
-      paymasterPostOpGasLimit: userOp.paymasterPostOpGasLimit 
-        ? BigInt(userOp.paymasterPostOpGasLimit) 
-        : undefined,
-      paymasterData: userOp.paymasterData as Hex | undefined,
-      signature: "0x" as Hex, // Empty for hash calculation
-    },
-    entryPointAddress: entryPoint07Address,
-    entryPointVersion: "0.7",
-    chainId: chainId,
-  });
-  
-  // SimpleAccount uses ECDSA.recover which expects eth_sign format (EIP-191)
-  const signature = await account.signMessage({ message: { raw: hash } });
-  return signature;
-}
+
 
 // Poll for UserOperation receipt
 async function waitForUserOperationReceipt(userOpHash: Hex): Promise<any> {
@@ -381,6 +346,8 @@ export default function App() {
   const [blockNumber, setBlockNumber] = useState<bigint | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [lastTxHash, setLastTxHash] = useState<Hex | null>(null);
+  const [alchemyUserAddress, setAlchemyUserAddress] = useState<Address | null>(null);
+  const [username, setUsername] = useState<string>("demo-user");
 
   const addLog = useCallback(
     (message: string, type: "info" | "success" | "error" = "info") => {
@@ -391,6 +358,74 @@ export default function App() {
     },
     []
   );
+
+  // Alchemy Signer Ref
+  const alchemySignerRef = useRef<AlchemyWebSigner | null>(null);
+
+  // Initialize Alchemy Signer
+  useEffect(() => {
+    if (!alchemySignerRef.current) {
+      alchemySignerRef.current = new AlchemyWebSigner({
+        client: {
+          connection: {
+            apiKey: import.meta.env.VITE_ALCHEMY_API_KEY,
+          },
+          iframeConfig: {
+            iframeContainerId: "turnkey-iframe",
+          },
+        },
+      });
+    }
+  }, []);
+
+  // Sign UserOperation with test private key or Alchemy Signer
+  const signUserOperation = useCallback(async (userOp: any, entryPoint: Address, chainId: number): Promise<Hex> => {
+    // Use viem's getUserOperationHash for correct v0.7 format
+    const hash = viemGetUserOperationHash({
+      userOperation: {
+        sender: userOp.sender as Address,
+        nonce: BigInt(userOp.nonce || "0x0"),
+        factory: userOp.factory as Address | undefined,
+        factoryData: userOp.factoryData as Hex | undefined,
+        callData: userOp.callData as Hex,
+        callGasLimit: BigInt(userOp.callGasLimit || "0x0"),
+        verificationGasLimit: BigInt(userOp.verificationGasLimit || "0x0"),
+        preVerificationGas: BigInt(userOp.preVerificationGas || "0x0"),
+        maxFeePerGas: BigInt(userOp.maxFeePerGas || "0x0"),
+        maxPriorityFeePerGas: BigInt(userOp.maxPriorityFeePerGas || "0x0"),
+        paymaster: userOp.paymaster as Address | undefined,
+        paymasterVerificationGasLimit: userOp.paymasterVerificationGasLimit 
+          ? BigInt(userOp.paymasterVerificationGasLimit) 
+          : undefined,
+        paymasterPostOpGasLimit: userOp.paymasterPostOpGasLimit 
+          ? BigInt(userOp.paymasterPostOpGasLimit) 
+          : undefined,
+        paymasterData: userOp.paymasterData as Hex | undefined,
+        signature: "0x" as Hex, // Empty for hash calculation
+      },
+      entryPointAddress: entryPoint07Address,
+      entryPointVersion: "0.7",
+      chainId: chainId,
+    });
+    
+    // Check Alchemy Signer
+    try {
+      if (alchemySignerRef.current) {
+        const address = await alchemySignerRef.current.getAddress();
+        if (address) {
+          console.log("Signing with Alchemy Signer...");
+          return await alchemySignerRef.current.signMessage({ raw: hash } as any);
+        }
+      }
+    } catch (e) {
+      console.log("Alchemy Signer not ready, falling back to Test Key");
+    }
+
+    const account = privateKeyToAccount(TEST_PRIVATE_KEY);
+    // SimpleAccount uses ECDSA.recover which expects eth_sign format (EIP-191)
+    const signature = await account.signMessage({ message: { raw: hash } });
+    return signature;
+  }, []);
 
   // Check connection to local node
   const checkConnection = useCallback(async () => {
@@ -631,22 +666,38 @@ export default function App() {
       // For PoC: Use a test EOA address as owner
       // In production, this should be derived from passkey or use WebAuthn-compatible account
       // Using a deterministic address for testing
-      const testOwnerAddress = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address; // Hardhat default account
+      // Determine owner address (Alchemy Signer or Test Key)
+      let ownerAddress = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address; // Default Hardhat account
+      
+      try {
+        if (alchemySignerRef.current) {
+          const alchemyAddress = await alchemySignerRef.current.getAddress();
+          if (alchemyAddress) {
+            ownerAddress = alchemyAddress;
+            addLog(`Using Alchemy Signer: ${ownerAddress}`, "info");
+          } else {
+            addLog(`Using Test Private Key: ${ownerAddress}`, "info");
+          }
+        }
+      } catch (e) {
+        addLog(`Using Test Private Key: ${ownerAddress}`, "info");
+      }
+
       const salt = 0n;
       
       // Get the correct sender address from factory
       addLog(`Getting sender address from factory...`, "info");
-      const senderAddress = await getSmartAccountAddressFromFactory(testOwnerAddress, salt);
+      const senderAddress = await getSmartAccountAddressFromFactory(ownerAddress, salt);
       addLog(`Factory sender: ${senderAddress}`, "info");
 
       // Build factoryData for first-time account deployment
       // SimpleAccountFactory.createAccount(address owner, uint256 salt)
       // Function selector: 0x5fbfb9cf
       const saltHex = salt.toString(16).padStart(64, '0');
-      const factoryData = `0x5fbfb9cf${testOwnerAddress.slice(2).padStart(64, '0')}${saltHex}` as Hex;
+      const factoryData = `0x5fbfb9cf${ownerAddress.slice(2).padStart(64, '0')}${saltHex}` as Hex;
 
       addLog(`Factory: ${SIMPLE_ACCOUNT_FACTORY}`, "info");
-      addLog(`Owner: ${testOwnerAddress}`, "info");
+      addLog(`Owner: ${ownerAddress}`, "info");
 
       // ERC-4337 v0.7 UserOperation format (without signature first)
       const userOpWithoutSig = {
@@ -660,8 +711,8 @@ export default function App() {
         callGasLimit: "0x50000",
         verificationGasLimit: "0x100000", 
         preVerificationGas: "0x50000",
-        maxFeePerGas: "0x3B9ACA00",
-        maxPriorityFeePerGas: "0x3B9ACA00",
+        maxFeePerGas: "0x77359400", // 2 Gwei
+        maxPriorityFeePerGas: "0x77359400", // 2 Gwei
         // No paymaster for now (user pays gas)
         paymaster: null,
         paymasterVerificationGasLimit: null,
@@ -748,6 +799,9 @@ export default function App() {
 
   return (
     <div className="container">
+      {/* Hidden Iframe for Turnkey - Must be always present */}
+      <div id="turnkey-iframe" style={{ display: "none" }} />
+      
       <header className="header">
         <h1>🔐 Passkey PoC</h1>
         <p>On-Chain WebAuthn Smart Account Demo</p>
@@ -863,7 +917,67 @@ export default function App() {
       {/* Smart Account */}
       {smartAccountAddress && (
         <div className="card">
-          <h2>💼 Smart Account</h2>
+      <h2>💼 Smart Account</h2>
+      
+      <div className="card" style={{ marginBottom: '20px', border: '1px solid #646cff', padding: '15px' }}>
+        <h3>Phase 1: Alchemy Signer</h3>
+        <p>Use Alchemy's Managed Signer for Passkeys</p>
+        
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+          <input 
+            type="text" 
+            value={username} 
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+            style={{ padding: '8px' }}
+          />
+        </div>
+        
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={async () => {
+            try {
+              if (!alchemySignerRef.current) throw new Error("Signer loading...");
+              addLog("Registering with Alchemy...", "info");
+              const account = await alchemySignerRef.current.authenticate({
+                type: "passkey",
+                createNew: true,
+                username: username,
+              });
+              setAlchemyUserAddress(account.address);
+              addLog(`Authenticated: ${account.address}`, "success");
+            } catch (e: any) {
+              addLog(`Auth failed: ${e.message}`, "error");
+            }
+          }}>
+            Register New (Alchemy)
+          </button>
+          
+          <button onClick={async () => {
+             try {
+              if (!alchemySignerRef.current) throw new Error("Signer loading...");
+              addLog("Logging in with Alchemy...", "info");
+              const account = await alchemySignerRef.current.authenticate({
+                type: "passkey",
+                createNew: false,
+              });
+              setAlchemyUserAddress(account.address);
+              addLog(`Authenticated: ${account.address}`, "success");
+            } catch (e: any) {
+              addLog(`Auth failed: ${e.message}`, "error");
+            }
+          }}>
+            Login (Alchemy)
+          </button>
+        </div>
+        
+        {alchemyUserAddress && (
+          <div style={{ marginTop: '10px' }}>
+            <strong>Signer Address:</strong> {alchemyUserAddress}
+          </div>
+        )}
+        
+
+      </div>
           <div className="info-grid">
             <div className="info-item">
               <label>Address (Counterfactual)</label>
