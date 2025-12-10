@@ -27,20 +27,21 @@ interface LogEntry {
   timestamp: Date;
 }
 
-// Configuration
-const LOCAL_CONFIG = {
-  rpcUrl: "http://127.0.0.1:8545",
-  bundlerUrl: "http://127.0.0.1:4337",
-  chainId: 31337,
+// Tenderly Virtual TestNet Configuration
+// These values are loaded from environment variables (set via .env file)
+const TENDERLY_CONFIG = {
+  rpcUrl: import.meta.env.VITE_TENDERLY_RPC_URL || "https://virtual.sepolia.rpc.tenderly.co/YOUR_ACCESS_KEY",
+  bundlerUrl: import.meta.env.VITE_BUNDLER_URL || "http://127.0.0.1:3000",
+  chainId: parseInt(import.meta.env.VITE_TENDERLY_CHAIN_ID || "11155111"),
 };
 
 const ENTRYPOINT_ADDRESS_V07 =
   "0x0000000071727De22E5E9d8BAf0edAc6f37da032" as const;
 
-// Local chain definition
-const localChain = {
-  id: 31337,
-  name: "Localhost",
+// Tenderly Virtual TestNet chain definition
+const tenderlyChain = {
+  id: TENDERLY_CONFIG.chainId,
+  name: "Tenderly Virtual TestNet",
   nativeCurrency: {
     decimals: 18,
     name: "Ether",
@@ -48,7 +49,7 @@ const localChain = {
   },
   rpcUrls: {
     default: {
-      http: ["http://127.0.0.1:8545"],
+      http: [TENDERLY_CONFIG.rpcUrl],
     },
   },
 };
@@ -214,15 +215,15 @@ export default function App() {
   const checkConnection = useCallback(async () => {
     try {
       const client = createPublicClient({
-        chain: localChain,
-        transport: http(LOCAL_CONFIG.rpcUrl),
+        chain: tenderlyChain,
+        transport: http(TENDERLY_CONFIG.rpcUrl),
       });
 
       const chainId = await client.getChainId();
       const block = await client.getBlockNumber();
       setBlockNumber(block);
 
-      if (chainId === LOCAL_CONFIG.chainId) {
+      if (chainId === TENDERLY_CONFIG.chainId) {
         setIsConnected(true);
         addLog(`Connected to local node (chain ID: ${chainId})`, "success");
         return true;
@@ -404,8 +405,8 @@ export default function App() {
 
     try {
       const client = createPublicClient({
-        chain: localChain,
-        transport: http(LOCAL_CONFIG.rpcUrl),
+        chain: tenderlyChain,
+        transport: http(TENDERLY_CONFIG.rpcUrl),
       });
 
       const bal = await client.getBalance({ address: smartAccountAddress });
@@ -446,15 +447,15 @@ export default function App() {
         <div className="info-grid">
           <div className="info-item">
             <label>RPC URL</label>
-            <div className="value">{LOCAL_CONFIG.rpcUrl}</div>
+            <div className="value">{TENDERLY_CONFIG.rpcUrl}</div>
           </div>
           <div className="info-item">
             <label>Bundler URL</label>
-            <div className="value">{LOCAL_CONFIG.bundlerUrl}</div>
+            <div className="value">{TENDERLY_CONFIG.bundlerUrl}</div>
           </div>
           <div className="info-item">
             <label>Chain ID</label>
-            <div className="value">{LOCAL_CONFIG.chainId}</div>
+            <div className="value">{TENDERLY_CONFIG.chainId}</div>
           </div>
           {blockNumber && (
             <div className="info-item">
@@ -573,10 +574,10 @@ export default function App() {
           <div className="step">
             <div className="step-number">1</div>
             <div className="step-content">
-              <h3>Start Local Node</h3>
+              <h3>Configure Environment</h3>
               <p>
-                Run <code>cd passkey-poc && pnpm hardhat node</code> to start
-                the local EVM node with Sepolia fork.
+                Copy <code>.env.example</code> to <code>.env</code> and set your
+                Tenderly RPC URL and Chain ID.
               </p>
             </div>
           </div>
@@ -585,8 +586,8 @@ export default function App() {
             <div className="step-content">
               <h3>Start Bundler</h3>
               <p>
-                Run <code>pnpm ts-node scripts/setup-bundler.ts</code> to start
-                the self-hosted ERC-4337 bundler.
+                Run <code>pnpm bundler:start</code> to start the Rundler
+                ERC-4337 bundler via Docker.
               </p>
             </div>
           </div>

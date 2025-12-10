@@ -8,8 +8,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "node": "npx hardhat node",
-    "bundler": "npx ts-node --esm scripts/setup-bundler.ts",
+    "bundler:start": "docker compose up -d rundler",
+    "bundler:stop": "docker compose down",
+    "bundler:logs": "docker compose logs -f rundler",
+    "bundler:build": "docker compose build rundler",
     "test:infra": "npx ts-node --esm scripts/test-poc.ts",
     "typecheck": "tsc --noEmit"
   },

@@ -29,7 +29,23 @@ export const SAFE_WEBAUTHN_SIGNER_FACTORY =
   "0x4E4E3C2e2CdA9d2D2F9E3a6E6E9E2C2E3D4E5F6A" as const;
 
 /**
- * Local Development Configuration
+ * Tenderly Virtual TestNet Configuration
+ * 
+ * These values should be set via environment variables:
+ * - VITE_TENDERLY_RPC_URL: Tenderly Virtual TestNet RPC URL
+ * - VITE_TENDERLY_CHAIN_ID: Tenderly Virtual TestNet Chain ID
+ * - VITE_BUNDLER_URL: Rundler Bundler URL
+ */
+export const TENDERLY_CONFIG = {
+  // Default values for development - override via environment variables
+  rpcUrl: import.meta.env.VITE_TENDERLY_RPC_URL || "https://virtual.sepolia.rpc.tenderly.co/YOUR_ACCESS_KEY",
+  bundlerUrl: import.meta.env.VITE_BUNDLER_URL || "http://127.0.0.1:3000",
+  chainId: parseInt(import.meta.env.VITE_TENDERLY_CHAIN_ID || "11155111"), // Default to Sepolia chain ID
+} as const;
+
+/**
+ * @deprecated Use TENDERLY_CONFIG instead
+ * Legacy Local Development Configuration (for reference)
  */
 export const LOCAL_CONFIG = {
   rpcUrl: "http://127.0.0.1:8545",
@@ -75,3 +91,4 @@ export const WEBAUTHN_CONFIG = {
   // Timeout in milliseconds
   timeout: 60000,
 };
+

@@ -27,7 +27,7 @@ import { toSimpleSmartAccount } from "permissionless/accounts";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
 import { entryPoint07Address } from "viem/account-abstraction";
 import {
-  LOCAL_CONFIG,
+  TENDERLY_CONFIG,
   ENTRYPOINT_ADDRESS_V07,
 } from "./constants.js";
 import {
@@ -37,7 +37,26 @@ import {
 } from "./webauthnSigner.js";
 
 /**
- * Local chain definition for Hardhat network
+ * Tenderly Virtual TestNet chain definition
+ */
+export const tenderlyChain: Chain = {
+  id: TENDERLY_CONFIG.chainId,
+  name: "Tenderly Virtual TestNet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: {
+      http: [TENDERLY_CONFIG.rpcUrl],
+    },
+  },
+};
+
+/**
+ * @deprecated Use tenderlyChain instead
+ * Local chain definition for Hardhat network (legacy)
  */
 export const localChain: Chain = {
   id: 31337,
@@ -59,8 +78,8 @@ export const localChain: Chain = {
  */
 export function createLocalPublicClient(): PublicClient {
   return createPublicClient({
-    chain: localChain,
-    transport: http(LOCAL_CONFIG.rpcUrl),
+    chain: tenderlyChain,
+    transport: http(TENDERLY_CONFIG.rpcUrl),
   });
 }
 
@@ -71,8 +90,8 @@ export function createLocalWalletClient(privateKey: Hex): WalletClient {
   const account = privateKeyToAccount(privateKey);
   return createWalletClient({
     account,
-    chain: localChain,
-    transport: http(LOCAL_CONFIG.rpcUrl),
+    chain: tenderlyChain,
+    transport: http(TENDERLY_CONFIG.rpcUrl),
   });
 }
 

@@ -1,6 +1,6 @@
 # On-Chain Passkey PoC
 
-WebAuthn Passkey を使用した ERC-4337 スマートアカウントのセルフホスト環境での PoC 実装。
+WebAuthn Passkey を使用した ERC-4337 スマートアカウントの PoC 実装。
 
 ## アーキテクチャ
 
@@ -20,20 +20,29 @@ WebAuthn Passkey を使用した ERC-4337 スマートアカウントのセル�
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Self-Hosted Bundler                                        │
-│  - UserOperation処理                                         │
+│  Rundler (Docker Self-Hosted)                               │
+│  - ERC-4337 Bundler (Rust, by Alchemy)                      │
 │  - EntryPoint v0.7対応                                       │
+│  - Port: 3000                                                │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Hardhat Node (Sepolia Fork)                               │
-│  - EntryPoint: 0x0000000071727De22E5E9d8BAf0edAc6f37da032  │
-│  - ERC-4337インフラ（フォークから取得）                         │
+│  Tenderly Virtual TestNet                                   │
+│  - Sepolia Fork                                              │
+│  - EntryPoint: 0x0000000071727De22E5E9d8BAf0edAc6f37da032   │
+│  - ERC-4337インフラ（フォークから取得）                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## クイックスタート
+
+### 前提条件
+
+- Node.js 18+
+- pnpm
+- Docker & Docker Compose
+- Tenderly アカウント（Virtual TestNet作成済み）
 
 ### 1. 依存関係のインストール
 
@@ -42,28 +51,49 @@ cd passkey-poc
 pnpm install
 ```
 
-### 2. ローカルノードの起動
+### 2. 環境変数の設定
 
 ```bash
-# Terminal 1: Hardhat node (Sepolia fork)
-pnpm node
+cp .env.example .env
 ```
 
-### 3. セルフホストBundlerの起動
+`.env` ファイルを編集して以下を設定:
+
+```env
+# Tenderly Virtual TestNet
+TENDERLY_RPC_URL=https://virtual.sepolia.rpc.tenderly.co/YOUR_ACCESS_KEY
+TENDERLY_CHAIN_ID=YOUR_CHAIN_ID
+
+# Bundler Private Key (ETHを入金しておく)
+BUNDLER_PRIVATE_KEY=0xYOUR_PRIVATE_KEY
+```
+
+### 3. Rundler Bundlerの起動
 
 ```bash
-# Terminal 2: ERC-4337 Bundler
-pnpm bundler
+# Rundler Dockerイメージをビルド（初回のみ）
+pnpm bundler:build
+
+# Bundlerを起動
+pnpm bundler:start
+
+# ログを確認
+pnpm bundler:logs
 ```
 
 ### 4. フロントエンドの起動
 
 ```bash
-# Terminal 3: Vite dev server
 pnpm dev
 ```
 
 ブラウザで http://localhost:5174 を開く
+
+### 5. Bundlerを停止
+
+```bash
+pnpm bundler:stop
+```
 
 ## 主要コンポーネント
 
@@ -79,37 +109,35 @@ pnpm dev
 - Bundlerクライアント設定
 - EntryPointとの連携
 
-### Self-Hosted Bundler (`scripts/setup-bundler.ts`)
+### Rundler Bundler (`docker-compose.yml`)
 
-- ERC-4337 JSON-RPC APIの実装
-- `eth_sendUserOperation`
-- `eth_estimateUserOperationGas`
-- `eth_supportedEntryPoints`
-- モックPaymaster（テスト用）
+- AlchemyのRust製高性能ERC-4337 Bundler
+- Dockerでセルフホスト
+- EntryPoint v0.7対応
 
 ## 設定
 
 ### 環境変数 (`.env`)
 
 ```env
-# RPC URLs
-SEPOLIA_RPC_URL=https://rpc.sepolia.org
-LOCAL_RPC_URL=http://127.0.0.1:8545
-LOCAL_BUNDLER_URL=http://127.0.0.1:4337
+# Tenderly Virtual TestNet
+TENDERLY_RPC_URL=https://virtual.sepolia.rpc.tenderly.co/YOUR_ACCESS_KEY
+TENDERLY_CHAIN_ID=YOUR_CHAIN_ID
+
+# Rundler Bundler
+BUNDLER_URL=http://127.0.0.1:3000
+BUNDLER_PRIVATE_KEY=0xYOUR_BUNDLER_PRIVATE_KEY
 
 # Contract Addresses
 ENTRYPOINT_V07=0x0000000071727De22E5E9d8BAf0edAc6f37da032
-
-# Test Account (Hardhat default #0)
-DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 ```
 
 ## 技術スタック
 
 - **Frontend**: React 19, TypeScript, Vite
 - **Web3**: viem, @aa-sdk/core, permissionless
-- **Local EVM**: Hardhat Network (Sepolia fork)
-- **Bundler**: カスタム実装 (本番では Alto/Rundler 推奨)
+- **Blockchain**: Tenderly Virtual TestNet (Sepolia fork)
+- **Bundler**: Rundler (Alchemy, Rust製)
 - **Smart Account**: ERC-4337 v0.7
 
 ## Passkey フロー
