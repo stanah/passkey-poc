@@ -14,6 +14,10 @@ import {
   toHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { 
+  getUserOperationHash as viemGetUserOperationHash,
+  entryPoint07Address,
+} from "viem/account-abstraction";
 
 // Types for our passkey implementation
 interface StoredCredential {
@@ -265,13 +269,74 @@ function getUserOperationHash(
 }
 
 // Sign UserOperation with test private key
-// Uses direct hash signing (not EIP-191 prefixed) for SimpleAccount compatibility
+// Uses viem's getUserOperationHash for correct v0.7 hash calculation
 async function signUserOperation(userOp: any, entryPoint: Address, chainId: number): Promise<Hex> {
   const account = privateKeyToAccount(TEST_PRIVATE_KEY);
-  const hash = getUserOperationHash(userOp, entryPoint, chainId);
-  // Use sign (not signMessage) to avoid EIP-191 prefix
-  const signature = await account.sign({ hash });
+  
+  // Use viem's getUserOperationHash for correct v0.7 format
+  const hash = viemGetUserOperationHash({
+    userOperation: {
+      sender: userOp.sender as Address,
+      nonce: BigInt(userOp.nonce || "0x0"),
+      factory: userOp.factory as Address | undefined,
+      factoryData: userOp.factoryData as Hex | undefined,
+      callData: userOp.callData as Hex,
+      callGasLimit: BigInt(userOp.callGasLimit || "0x0"),
+      verificationGasLimit: BigInt(userOp.verificationGasLimit || "0x0"),
+      preVerificationGas: BigInt(userOp.preVerificationGas || "0x0"),
+      maxFeePerGas: BigInt(userOp.maxFeePerGas || "0x0"),
+      maxPriorityFeePerGas: BigInt(userOp.maxPriorityFeePerGas || "0x0"),
+      paymaster: userOp.paymaster as Address | undefined,
+      paymasterVerificationGasLimit: userOp.paymasterVerificationGasLimit 
+        ? BigInt(userOp.paymasterVerificationGasLimit) 
+        : undefined,
+      paymasterPostOpGasLimit: userOp.paymasterPostOpGasLimit 
+        ? BigInt(userOp.paymasterPostOpGasLimit) 
+        : undefined,
+      paymasterData: userOp.paymasterData as Hex | undefined,
+      signature: "0x" as Hex, // Empty for hash calculation
+    },
+    entryPointAddress: entryPoint07Address,
+    entryPointVersion: "0.7",
+    chainId: chainId,
+  });
+  
+  // SimpleAccount uses ECDSA.recover which expects eth_sign format (EIP-191)
+  const signature = await account.signMessage({ message: { raw: hash } });
   return signature;
+}
+
+// Poll for UserOperation receipt
+async function waitForUserOperationReceipt(userOpHash: Hex): Promise<any> {
+  const maxRetries = 30; // 30 seconds
+  const interval = 1000; // 1 second
+
+  for (let i = 0; i < maxRetries; i++) {
+    const request = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_getUserOperationReceipt",
+      params: [userOpHash],
+    };
+
+    try {
+      const response = await fetch(TENDERLY_CONFIG.bundlerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+      });
+      const result = await response.json();
+      
+      if (result.result) {
+        return result.result;
+      }
+    } catch (e) {
+      console.warn("Failed to fetch receipt, retrying...", e);
+    }
+    
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+  return null;
 }
 
 // Fallback: compute address from public key hash (for display only)
@@ -650,6 +715,17 @@ export default function App() {
       setLastTxHash(userOpHash);
       addLog(`UserOperation submitted!`, "success");
       addLog(`UserOp Hash: ${userOpHash}`, "success");
+      
+      addLog("Waiting for receipt...", "info");
+      const receipt = await waitForUserOperationReceipt(userOpHash);
+      
+      if (receipt) {
+        addLog(`Transaction Mined! ⛏️`, "success");
+        addLog(`Tx Hash: ${receipt.receipt.transactionHash}`, "success");
+        console.log("Full Receipt:", receipt);
+      } else {
+        addLog("Receipt timeout (check Tenderly explorer)", "error");
+      }
 
       // Check balance after transaction
       await checkBalance();
