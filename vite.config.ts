@@ -5,6 +5,7 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   root: "./frontend",
+  envDir: "../",  // Read .env from project root
   publicDir: "../public",
   resolve: {
     alias: {
