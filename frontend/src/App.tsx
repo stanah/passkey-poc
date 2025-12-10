@@ -265,10 +265,12 @@ function getUserOperationHash(
 }
 
 // Sign UserOperation with test private key
+// Uses direct hash signing (not EIP-191 prefixed) for SimpleAccount compatibility
 async function signUserOperation(userOp: any, entryPoint: Address, chainId: number): Promise<Hex> {
   const account = privateKeyToAccount(TEST_PRIVATE_KEY);
   const hash = getUserOperationHash(userOp, entryPoint, chainId);
-  const signature = await account.signMessage({ message: { raw: hash } });
+  // Use sign (not signMessage) to avoid EIP-191 prefix
+  const signature = await account.sign({ hash });
   return signature;
 }
 
