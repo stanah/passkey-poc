@@ -1,43 +1,33 @@
 # Rundler ERC-4337 Bundler Docker Compose Configuration
 # Self-hosted bundler for Account Abstraction
+#
+# SETUP:
+# 1. Clone Rundler repository:
+#    git clone https://github.com/alchemyplatform/rundler.git
+#    cd rundler
+#    git submodule update --init --recursive
+#
+# 2. Build the Docker image:
+#    docker buildx build . -t rundler
+#
+# 3. Return to this project and run:
+#    docker compose up -d rundler
 
 services:
   rundler:
-    build:
-      context: https://github.com/alchemyplatform/rundler.git
-      dockerfile: Dockerfile
+    image: rundler
     command: node
     ports:
-      # RPC port (ERC-4337 Bundler API)
+      # RPC port
       - "3000:3000"
       # Metrics port
       - "8080:8080"
     environment:
-      # Logging
       - RUST_LOG=INFO
-      
-      # Network Configuration - Connect to Tenderly Virtual TestNet
+      - NETWORK=sepolia
       - NODE_HTTP=${TENDERLY_RPC_URL}
-      
-      # Signer Configuration
-      - SIGNER_PRIVATE_KEYS=${BUNDLER_PRIVATE_KEY}
-      
-      # Entry Point Configuration
-      # Disable v0.6, use only v0.7
+      - BUILDER_PRIVATE_KEY=${BUNDLER_PRIVATE_KEY}
       - DISABLE_ENTRY_POINT_V0_6=true
-      
-      # RPC Configuration
-      - RPC_PORT=3000
-      - RPC_HOST=0.0.0.0
-      - RPC_CORSDOMAIN=*
-      
-      # Development Settings
-      # WARNING: Only use UNSAFE mode in development!
-      - UNSAFE=true
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+
+
