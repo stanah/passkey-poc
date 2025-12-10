@@ -205,6 +205,8 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [blockNumber, setBlockNumber] = useState<bigint | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [lastTxHash, setLastTxHash] = useState<Hex | null>(null);
 
   const addLog = useCallback(
     (message: string, type: "info" | "success" | "error" = "info") => {
@@ -422,6 +424,78 @@ export default function App() {
     }
   }, [smartAccountAddress, addLog]);
 
+  // Send a test transaction via Bundler
+  const sendTransaction = useCallback(async () => {
+    if (!credential || !smartAccountAddress) {
+      addLog("No credential or smart account available", "error");
+      return;
+    }
+
+    setIsSending(true);
+    addLog("Sending transaction via Bundler...", "info");
+
+    try {
+      // Create a simple self-transfer (0 ETH to self) to test the flow
+      const targetAddress = smartAccountAddress;
+      const value = parseEther("0"); // 0 ETH transfer for testing
+
+      addLog(`Target: ${targetAddress}`, "info");
+      addLog(`Value: 0 ETH (test transaction)`, "info");
+
+      // Build UserOperation request
+      const userOpRequest = {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_sendUserOperation",
+        params: [
+          {
+            sender: smartAccountAddress,
+            nonce: "0x0",
+            initCode: "0x",
+            callData: "0x",
+            callGasLimit: "0x50000",
+            verificationGasLimit: "0x50000",
+            preVerificationGas: "0x50000",
+            maxFeePerGas: "0x3B9ACA00",
+            maxPriorityFeePerGas: "0x3B9ACA00",
+            paymasterAndData: "0x",
+            signature: "0x",
+          },
+          ENTRYPOINT_ADDRESS_V07,
+        ],
+      };
+
+      addLog("Sending UserOperation to Bundler...", "info");
+      addLog(`Bundler URL: ${TENDERLY_CONFIG.bundlerUrl}`, "info");
+
+      const response = await fetch(TENDERLY_CONFIG.bundlerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userOpRequest),
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        throw new Error(result.error.message || JSON.stringify(result.error));
+      }
+
+      const userOpHash = result.result as Hex;
+      setLastTxHash(userOpHash);
+      addLog(`UserOperation submitted!`, "success");
+      addLog(`UserOp Hash: ${userOpHash}`, "success");
+
+      // Check balance after transaction
+      await checkBalance();
+    } catch (error: any) {
+      addLog(`Transaction failed: ${error.message}`, "error");
+    } finally {
+      setIsSending(false);
+    }
+  }, [credential, smartAccountAddress, addLog, checkBalance]);
+
   // Clear credential
   const clearCredential = useCallback(() => {
     const savedCredentials = credentialStorage.list();
@@ -563,8 +637,27 @@ export default function App() {
               <label>EntryPoint</label>
               <div className="value">{ENTRYPOINT_ADDRESS_V07}</div>
             </div>
+            {lastTxHash && (
+              <div className="info-item">
+                <label>Last UserOp Hash</label>
+                <div className="value">{lastTxHash.slice(0, 30)}...</div>
+              </div>
+            )}
           </div>
           <div className="actions">
+            <button
+              className="button primary"
+              onClick={sendTransaction}
+              disabled={isSending || !isConnected}
+            >
+              {isSending ? (
+                <>
+                  <span className="spinner"></span> Sending...
+                </>
+              ) : (
+                "🚀 Send Transaction"
+              )}
+            </button>
             <button className="button secondary" onClick={checkBalance}>
               💰 Check Balance
             </button>

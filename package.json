@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@aa-sdk/core": "^4.79.0",
+    "@account-kit/smart-contracts": "^4.81.2",
     "permissionless": "^0.3.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

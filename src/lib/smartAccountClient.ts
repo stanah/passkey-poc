@@ -215,7 +215,7 @@ export async function createCompleteSmartAccountClient(config: {
   // Create the smart account client
   const smartAccountClient = createSmartAccountClient({
     account: simpleAccount,
-    chain: localChain,
+    chain: tenderlyChain,
     bundlerTransport: http(config.bundlerUrl),
   });
 
