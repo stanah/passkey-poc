@@ -33,7 +33,7 @@ services:
     depends_on:
       - anvil
     environment:
-      - RUST_LOG=debug
+      - RUST_LOG=info
       - CHAIN_ID=31337
       - NODE_HTTP=http://anvil:8545
       - SIGNER_PRIVATE_KEYS=${BUNDLER_PRIVATE_KEY}
