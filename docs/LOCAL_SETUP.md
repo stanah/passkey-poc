@@ -54,53 +54,20 @@ image: alchemyplatform/rundler:latest
 > ```
 > その場合は `docker-compose.yml` の `image:` を `rundler` に変更。
 
-## 4. Docker コンテナの起動
+## 4. 環境を起動
 
 ```bash
 ./scripts/up.sh
 ```
 
-起動確認：
-```bash
-docker compose ps
-# anvil と rundler が Up であること
+このスクリプトは以下を自動で実行：
+- ✅ Docker コンテナ起動 (Anvil + Rundler)
+- ✅ Anvil の準備完了を待機
+- ✅ Builder アカウントに ETH を送金
+- ✅ Paymaster コントラクトをデプロイ
+- ✅ `.env` に Paymaster アドレスを設定
 
-# Anvil 接続確認
-curl -s -X POST -H "Content-Type: application/json" \
-  --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
-  http://127.0.0.1:8545
-```
-
-## 5. Builder アカウントへの送金
-
-Rundler がバンドルを送信するには Builder アカウントに ETH が必要。
-
-```bash
-# Builder アドレスを確認
-cast wallet address --private-key <BUNDLER_PRIVATE_KEY>
-
-# Anvil テストアカウントから送金
-cast send <BUILDER_ADDRESS> \
-  --value 10ether \
-  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-  --rpc-url http://127.0.0.1:8545
-```
-
-## 6. Paymaster コントラクトのデプロイ
-
-```bash
-PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-forge script script/DeployPaymaster.s.sol \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast
-```
-
-出力された `VITE_PAYMASTER_ADDRESS` を `.env` に追加：
-```bash
-VITE_PAYMASTER_ADDRESS=0x...
-```
-
-## 7. フロントエンドの起動
+## 5. フロントエンドの起動
 
 ```bash
 pnpm dev
