@@ -17,20 +17,7 @@ if [ -z "$ANVIL_FORK_URL" ]; then
   exit 1
 fi
 
-# Check if rundler image exists
-if ! docker image inspect rundler &> /dev/null; then
-  echo "ERROR: 'rundler' Docker image not found!"
-  echo ""
-  echo "You need to build it locally. Run these commands:"
-  echo ""
-  echo "  git clone https://github.com/alchemyplatform/rundler.git"
-  echo "  cd rundler"
-  echo "  git submodule update --init --recursive"
-  echo "  docker buildx build . -t rundler"
-  echo ""
-  echo "Then run this script again."
-  exit 1
-fi
+# Note: Uses official alchemyplatform/rundler:latest image from Docker Hub
 
 echo "Starting Local Environment..."
 echo "Forking from: $ANVIL_FORK_URL"

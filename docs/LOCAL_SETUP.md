@@ -57,8 +57,7 @@ image: alchemyplatform/rundler:latest
 ## 4. Docker コンテナの起動
 
 ```bash
-cd passkey-poc
-docker compose up -d
+./scripts/up.sh
 ```
 
 起動確認：
