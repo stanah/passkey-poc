@@ -37,18 +37,22 @@ cp .env.example .env
 | `VITE_LOCAL_RPC_URL` | Anvil URL | `http://127.0.0.1:8545` |
 | `VITE_LOCAL_BUNDLER_URL` | Rundler URL | `http://127.0.0.1:3000` |
 
-## 3. Rundler Docker イメージのビルド
+## 3. Rundler Docker イメージ
 
-> [!WARNING]
-> Rundler の公式 Docker イメージはないため、自分でビルドする必要がある。
-
-```bash
-# 別ディレクトリで
-git clone https://github.com/alchemyplatform/rundler.git
-cd rundler
-git submodule update --init --recursive
-docker buildx build . -t rundler
+公式イメージを使用：
+```yaml
+# docker-compose.yml で設定済み
+image: alchemyplatform/rundler:latest
 ```
+
+> [!TIP]
+> ローカルでビルドする場合：
+> ```bash
+> git clone https://github.com/alchemyplatform/rundler.git
+> cd rundler && git submodule update --init --recursive
+> docker buildx build . -t rundler
+> ```
+> その場合は `docker-compose.yml` の `image:` を `rundler` に変更。
 
 ## 4. Docker コンテナの起動
 
