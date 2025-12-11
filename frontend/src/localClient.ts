@@ -72,12 +72,26 @@ export async function createLocalClient(signer: SmartAccountSigner) {
     chain: localChain,
     transport: localTransport,
     account,
-    // Paymaster configuration: sponsor gas if address is set
+    // Paymaster configuration: sponsor gas if address is set (ERC-4337 v0.7 format)
     ...(PAYMASTER_ADDRESS && {
-      paymasterAndData: {
-        dummyPaymasterAndData: () => PAYMASTER_ADDRESS,
-        paymasterAndData: async () => PAYMASTER_ADDRESS,
-      },
+      // Dummy paymaster data for gas estimation
+      dummyPaymasterAndData: async (struct: any) => ({
+        ...struct,
+        // v0.7 uses separate fields instead of paymasterAndData
+        paymaster: PAYMASTER_ADDRESS as `0x${string}`,
+        paymasterData: "0x" as `0x${string}`,
+        paymasterVerificationGasLimit: 100000n,
+        paymasterPostOpGasLimit: 50000n,
+      }),
+      // Actual paymaster data for transaction
+      paymasterAndData: async (struct: any) => ({
+        ...struct,
+        // v0.7 uses separate fields instead of paymasterAndData
+        paymaster: PAYMASTER_ADDRESS as `0x${string}`,
+        paymasterData: "0x" as `0x${string}`,
+        paymasterVerificationGasLimit: 100000n,
+        paymasterPostOpGasLimit: 50000n,
+      }),
     }),
   });
 
