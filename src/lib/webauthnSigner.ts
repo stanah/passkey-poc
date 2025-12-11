@@ -142,7 +142,9 @@ export async function createPasskeyCredential(
     throw new Error("WebAuthn is not supported in this browser");
   }
 
-  const userIdBytes = new TextEncoder().encode(userId);
+  // Create a Uint8Array with a proper ArrayBuffer backing (for TypeScript 5.2+ compatibility)
+  const encodedUserId = new TextEncoder().encode(userId);
+  const userIdBytes = new Uint8Array(encodedUserId.buffer.slice(0)) as Uint8Array<ArrayBuffer>;
 
   const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions =
     {

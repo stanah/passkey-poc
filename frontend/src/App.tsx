@@ -19,10 +19,12 @@ export default function App() {
   const signer = useSigner();
   const { addPasskey, isAddingPasskey } = useAddPasskey();
 
-  // Account Kit's client (used when not in local mode)
-  const { client: alchemyClient } = useSmartAccountClient({
+  // Account Kit's client - only used when not in local mode
+  // This hook may return undefined if user is not logged in
+  const smartAccountResult = useSmartAccountClient({
     type: "LightAccount",
   });
+  const alchemyClient = smartAccountResult?.client;
 
   const [isSigning, setIsSigning] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
@@ -143,11 +145,11 @@ export default function App() {
                     {user.address}
                   </span>
                 </div>
-                {client && (
+                {alchemyClient && (
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-cute-text/50 uppercase">Smart Account</span>
                     <span className="text-cute-text font-mono text-xs bg-white/50 p-2 rounded-lg truncate border border-white">
-                      {client.account.address}
+                      {alchemyClient.account.address}
                     </span>
                   </div>
                 )}

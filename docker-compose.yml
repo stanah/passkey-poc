@@ -16,7 +16,8 @@
 services:
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
-    command: anvil --fork-url ${ANVIL_FORK_URL} --host 0.0.0.0 --chain-id 31337
+    entrypoint: ["anvil"]
+    command: ["--host", "0.0.0.0", "--chain-id", "31337", "--fork-url", "${ANVIL_FORK_URL}"]
     ports:
       - "8545:8545"
     restart: unless-stopped
