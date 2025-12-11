@@ -26,8 +26,7 @@ export const config = createConfig({
       }
     }
   },
-  ssr: true, 
-  enablePopupOauth: true,
+
 }, {
   // Authentication UI configuration
   auth: {

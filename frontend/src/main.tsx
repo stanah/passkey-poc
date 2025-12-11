@@ -11,11 +11,9 @@ import "@account-kit/react/styles.css";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AlchemyAccountProvider config={config} queryClient={queryClient}>
-        <App />
-      </AlchemyAccountProvider>
-    </QueryClientProvider>
-  </React.StrictMode>
+  <QueryClientProvider client={queryClient}>
+    <AlchemyAccountProvider config={config} queryClient={queryClient}>
+      <App />
+    </AlchemyAccountProvider>
+  </QueryClientProvider>
 );
