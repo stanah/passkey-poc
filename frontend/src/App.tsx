@@ -7,19 +7,27 @@ import {
   useSmartAccountClient,
   useAddPasskey
 } from "@account-kit/react";
+import { createLocalClient, sendLocalTestTransaction } from "./localClient";
+
+// Check if we're in local development mode
+const USE_LOCAL = import.meta.env.VITE_USE_LOCAL === "true";
 
 export default function App() {
   const { openAuthModal } = useAuthModal();
   const user = useUser();
   const { logout } = useLogout();
   const signer = useSigner();
-  const { client } = useSmartAccountClient({
-    type: "LightAccount", 
-  });
   const { addPasskey, isAddingPasskey } = useAddPasskey();
+
+  // Account Kit's client (used when not in local mode)
+  const { client: alchemyClient } = useSmartAccountClient({
+    type: "LightAccount",
+  });
 
   const [isSigning, setIsSigning] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [isSendingTx, setIsSendingTx] = useState(false);
 
   const handleSignMessage = async () => {
     if (!signer) return;
@@ -35,6 +43,45 @@ export default function App() {
       setIsSigning(false);
     }
   };
+
+  const handleSendTx = async () => {
+    if (!signer || !user?.address) return;
+    setIsSendingTx(true);
+    
+    try {
+      let hash: string;
+      
+      if (USE_LOCAL) {
+        // Use local client for local Bundler/Anvil
+        console.log("Sending tx via LOCAL Bundler...");
+        const localClient = await createLocalClient(signer);
+        hash = await sendLocalTestTransaction(localClient);
+      } else {
+        // Use Account Kit's client (Alchemy Bundler)
+        if (!alchemyClient) {
+          throw new Error("Alchemy client not ready");
+        }
+        console.log("Sending tx via ALCHEMY Bundler...");
+        const result = await alchemyClient.sendUserOperation({
+          uo: {
+            target: user.address as `0x${string}`,
+            data: "0x",
+            value: 0n,
+          },
+        });
+        hash = await alchemyClient.waitForUserOperationTransaction(result);
+      }
+      
+      setTxHash(hash);
+      console.log("Tx Sent:", hash);
+    } catch (error: any) {
+      console.error("Tx Failed:", error);
+      alert(`Tx Failed: ${error.message}`);
+    } finally {
+      setIsSendingTx(false);
+    }
+  };
+
 
   const handleLogin = () => {
     const apiKey = import.meta.env.VITE_ALCHEMY_API_KEY;
@@ -143,6 +190,34 @@ export default function App() {
                 <p className="font-mono text-[10px] text-green-500 break-all bg-white p-2 rounded-lg border border-green-100">
                   {signature}
                 </p>
+              </div>
+            )}
+
+            <button
+               onClick={handleSendTx}
+               disabled={isSendingTx}
+               style={{ backgroundColor: '#FF4500', color: 'white', border: 'none', padding: '12px 24px', fontSize: '1rem', borderRadius: '12px', cursor: 'pointer', marginTop: '10px' }}
+               className="w-full shadow-sm hover:bg-orange-600 hover:-translate-y-1 transition-all disabled:opacity-50"
+            >
+              {isSendingTx ? "Sending Tx... 💸" : "Send 0 ETH (Test Tx) 💸"}
+            </button>
+
+            {txHash && (
+              <div className="bg-blue-50 p-4 rounded-2xl border-2 border-blue-200">
+                <h3 className="text-blue-600 font-bold mb-2 flex items-center gap-2">
+                  <span>🚀</span> Tx Sent!
+                </h3>
+                <p className="font-mono text-[10px] text-blue-500 break-all bg-white p-2 rounded-lg border border-blue-100">
+                  Hash: {txHash}
+                </p>
+                <a 
+                  href={`https://dashboard.tenderly.co/tx/${txHash}`} // Fallback View
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 underline mt-2 block"
+                >
+                  View Explorer
+                </a>
               </div>
             )}
           </div>
