@@ -20,6 +20,7 @@ import type { SmartAccountSigner } from "@aa-sdk/core";
 // Environment configuration
 const LOCAL_RPC_URL = import.meta.env.VITE_LOCAL_RPC_URL || "http://127.0.0.1:8545";
 const LOCAL_BUNDLER_URL = import.meta.env.VITE_LOCAL_BUNDLER_URL || "http://127.0.0.1:3000";
+const PAYMASTER_ADDRESS = import.meta.env.VITE_PAYMASTER_ADDRESS as `0x${string}` | undefined;
 
 // Bundler RPC methods to route to local Rundler
 const BUNDLER_METHODS = [
@@ -53,6 +54,7 @@ const localTransport = split({
 
 /**
  * Create a local SmartAccountClient for testing with local Bundler.
+ * If VITE_PAYMASTER_ADDRESS is set, gas will be sponsored by the Paymaster.
  * 
  * @param signer - The signer from Account Kit (from useSigner() hook)
  * @returns Promise<SmartAccountClient> configured for local development
@@ -65,12 +67,25 @@ export async function createLocalClient(signer: SmartAccountSigner) {
     transport: http(LOCAL_RPC_URL),
   });
 
-  // Create SmartAccountClient with split transport
+  // Create SmartAccountClient with split transport and optional Paymaster
   const client = createSmartAccountClient({
     chain: localChain,
     transport: localTransport,
     account,
+    // Paymaster configuration: sponsor gas if address is set
+    ...(PAYMASTER_ADDRESS && {
+      paymasterAndData: {
+        dummyPaymasterAndData: () => PAYMASTER_ADDRESS,
+        paymasterAndData: async () => PAYMASTER_ADDRESS,
+      },
+    }),
   });
+
+  console.log(
+    PAYMASTER_ADDRESS 
+      ? `✅ Paymaster configured: ${PAYMASTER_ADDRESS}` 
+      : "⚠️ No Paymaster configured - user must have ETH"
+  );
 
   return client;
 }
