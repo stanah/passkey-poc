@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   rundler:
-    image: alchemyplatform/rundler:latest
+    image: alchemyplatform/rundler:v0.9.2
     command: node
     ports:
       # RPC port

@@ -39,20 +39,13 @@ cp .env.example .env
 
 ## 3. Rundler Docker イメージ
 
-公式イメージを使用：
+> [!IMPORTANT]
+> `latest` タグは AWS KMS を要求するため、`v0.9.2` を使用。
+
 ```yaml
 # docker-compose.yml で設定済み
-image: alchemyplatform/rundler:latest
+image: alchemyplatform/rundler:v0.9.2
 ```
-
-> [!TIP]
-> ローカルでビルドする場合：
-> ```bash
-> git clone https://github.com/alchemyplatform/rundler.git
-> cd rundler && git submodule update --init --recursive
-> docker buildx build . -t rundler
-> ```
-> その場合は `docker-compose.yml` の `image:` を `rundler` に変更。
 
 ## 4. 環境を起動
 
