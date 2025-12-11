@@ -6,7 +6,10 @@ ANVIL_PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f
 
 # Load environment variables
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+  # Load .env safely
+  set -a
+  source .env
+  set +a
 fi
 
 # Check for ANVIL_FORK_URL
@@ -15,10 +18,17 @@ if [ -z "$ANVIL_FORK_URL" ] && [ -n "$1" ]; then
 fi
 
 if [ -z "$ANVIL_FORK_URL" ]; then
-  echo "Error: ANVIL_FORK_URL is not set in .env"
-  echo "Please set it in .env or pass it as an argument."
-  exit 1
+  echo "ℹ️ ANVIL_FORK_URL is not set. Starting fresh local chain (no fork)."
+  ANVIL_ARGS=""
+else
+  echo "🍴 Forking from: $ANVIL_FORK_URL"
+  ANVIL_ARGS="--fork-url $ANVIL_FORK_URL"
+  if [ -n "$ANVIL_FORK_BLOCK_NUMBER" ]; then
+    echo "📌 Pinning block: $ANVIL_FORK_BLOCK_NUMBER"
+    ANVIL_ARGS="$ANVIL_ARGS --fork-block-number $ANVIL_FORK_BLOCK_NUMBER"
+  fi
 fi
+export ANVIL_ARGS
 
 if [ -z "$BUNDLER_PRIVATE_KEY" ]; then
   echo "Error: BUNDLER_PRIVATE_KEY is not set in .env"
@@ -26,14 +36,13 @@ if [ -z "$BUNDLER_PRIVATE_KEY" ]; then
 fi
 
 echo "🚀 Starting Local Environment..."
-echo "   Forking from: $ANVIL_FORK_URL"
 
 # Export for docker-compose
 export ANVIL_FORK_URL
 export BUNDLER_PRIVATE_KEY
 
-# Start containers
-docker compose up -d --remove-orphans
+# Start containers with explicit env var passing
+ANVIL_ARGS="$ANVIL_ARGS" docker compose up -d --remove-orphans
 
 echo "⏳ Waiting for Anvil to be ready..."
 for i in {1..30}; do
