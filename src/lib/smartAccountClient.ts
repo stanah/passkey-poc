@@ -191,39 +191,51 @@ export function createBundlerClient(bundlerUrl: string) {
 /**
  * Create a complete smart account client with bundler integration
  */
-export async function createCompleteSmartAccountClient(config: {
-  privateKey: Hex; // For initial account setup (will be replaced by passkey)
+import { createModularAccountV2Client } from "@account-kit/smart-contracts";
+
+import { z } from "zod";
+import {
+  ALCHEMY_MODULAR_ACCOUNT_FACTORY,
+  ALCHEMY_WEBAUTHN_VALIDATOR,
+} from "./constants.js";
+
+/**
+ * Create a complete smart account client using Alchemy SDK
+ */
+/**
+ * Create a complete smart account client using Alchemy SDK
+ */
+export async function createAlchemySmartAccountClient(config: {
+  passkeyParams: {
+    credential: { id: string; publicKey: Hex };
+    getFn: (params: { hash: Hex }) => Promise<any>;
+    rpId: string;
+  };
   bundlerUrl: string;
-  paymasterUrl?: string;
 }) {
-  const publicClient = createLocalPublicClient();
-
-  // Create a simple smart account using private key
-  // This is for testing - in production, use WebAuthn
-  const simpleAccount = await toSimpleSmartAccount({
-    client: publicClient,
-    owner: privateKeyToAccount(config.privateKey),
-    entryPoint: {
-      address: entryPoint07Address,
-      version: "0.7",
+  // Use local chain definition (Soneium Minato Fork)
+  const chain = {
+    ...tenderlyChain,
+    id: 1946, // Soneium Minato
+    name: "Soneium Minato (Fork)",
+    rpcUrls: {
+      default: { http: ["http://127.0.0.1:8545"] },
     },
-  });
+  };
 
-  // Create the bundler client
-  const bundlerClient = createBundlerClient(config.bundlerUrl);
+  const transport = http(config.bundlerUrl);
 
-  // Create the smart account client
-  const smartAccountClient = createSmartAccountClient({
-    account: simpleAccount,
-    chain: tenderlyChain,
-    bundlerTransport: http(config.bundlerUrl),
-  });
+  const smartAccountClient = await createModularAccountV2Client({
+    chain,
+    transport,
+    mode: "webauthn",
+    factoryAddress: ALCHEMY_MODULAR_ACCOUNT_FACTORY,
+    validatorAddress: ALCHEMY_WEBAUTHN_VALIDATOR,   
+    ...config.passkeyParams,
+  } as any); // Cast to any to avoid complex type matching issues with custom params
 
   return {
     smartAccountClient,
-    simpleAccount,
-    bundlerClient,
-    publicClient,
   };
 }
 
@@ -250,7 +262,7 @@ export const entryPointAbi = parseAbi([
   "function getNonce(address sender, uint192 key) view returns (uint256)",
   "function balanceOf(address account) view returns (uint256)",
   "function depositTo(address account) payable",
-]) as const;
+]);
 
 /**
  * Fund a smart account's entry point deposit

@@ -29,6 +29,20 @@ export const SAFE_WEBAUTHN_SIGNER_FACTORY =
   "0x4E4E3C2e2CdA9d2D2F9E3a6E6E9E2C2E3D4E5F6A" as const;
 
 /**
+ * Alchemy Modular Account Factory (v2)
+ * Canonical address deployed across EVM chains
+ */
+export const ALCHEMY_MODULAR_ACCOUNT_FACTORY =
+  "0x00000000000017c61b5bEe81050EC8eFc9c6fecd" as const;
+
+/**
+ * Alchemy WebAuthn Validator (v2)
+ * Canonical address deployed across EVM chains
+ */
+export const ALCHEMY_WEBAUTHN_VALIDATOR =
+  "0x0000000000001D9d34E07D9834274dF9ae575217" as const;
+
+/**
  * Tenderly Virtual TestNet Configuration
  * 
  * These values should be set via environment variables:

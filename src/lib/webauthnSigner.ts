@@ -390,3 +390,52 @@ export const credentialStorage = {
     return [];
   },
 };
+
+/**
+ * Creates parameters for Alchemy Modular Account WebAuthn mode
+ */
+export async function createAlchemyWebAuthnParams(
+  credentialKey: string
+): Promise<{
+    credential: { id: string; publicKey: Hex };
+    getFn: (params: { hash: Hex }) => Promise<{
+        signature: Hex;
+        authenticatorData: Hex;
+        clientDataJSON: string;
+        response: any;
+    }>;
+    rpId: string;
+} | null> {
+  const credential = credentialStorage.load(credentialKey);
+  if (!credential) return null; // Or throw
+
+  return {
+    credential: {
+      id: credential.credentialId,
+      publicKey: encodePacked(
+          ["uint256", "uint256"], 
+          [BigInt(credential.publicKey.x), BigInt(credential.publicKey.y)]
+      ),
+    },
+    getFn: async ({ hash }: { hash: Hex }) => {
+      const sig = await signWithPasskey(credential, hash);
+      
+      // Return format expected by Viem/Alchemy for WebAuthn
+      return {
+          signature: encodePacked(
+            ["uint256", "uint256"], 
+            [BigInt(sig.signature.r), BigInt(sig.signature.s)]
+          ),
+          authenticatorData: sig.authenticatorData,
+          clientDataJSON: sig.clientDataJSON,
+          response: {
+              authenticatorData: hexToBytes(sig.authenticatorData),
+              clientDataJSON: new TextEncoder().encode(sig.clientDataJSON),
+              signature: hexToBytes(encodePacked(["uint256", "uint256"], [BigInt(sig.signature.r), BigInt(sig.signature.s)])),
+              userHandle: credential.userHandle ? hexToBytes(credential.userHandle as Hex) : new Uint8Array(),
+          }
+      };
+    },
+    rpId: credential.rpId,
+  };
+}

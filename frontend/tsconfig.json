@@ -21,7 +21,13 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Types */
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    
+    /* Path Aliases */
+    "baseUrl": ".",
+    "paths": {
+      "@lib/*": ["../src/lib/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../src/lib"]
 }
