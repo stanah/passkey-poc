@@ -228,6 +228,28 @@ export async function createAlchemySmartAccountClient(config: {
 }) {
   const PAYMASTER_ADDRESS = import.meta.env
     .VITE_PAYMASTER_ADDRESS as `0x${string}` | undefined;
+  const hasPaymaster = Boolean(PAYMASTER_ADDRESS);
+
+  const pmMiddleware = hasPaymaster
+    ? {
+        // For estimation
+        dummyPaymasterAndData: async (uo: any) => ({
+          ...uo,
+          paymaster: PAYMASTER_ADDRESS as `0x${string}`,
+          paymasterData: "0x" as Hex,
+          paymasterVerificationGasLimit: 120_000n,
+          paymasterPostOpGasLimit: 60_000n,
+        }),
+        // For real submission
+        paymasterAndData: async (uo: any) => ({
+          ...uo,
+          paymaster: PAYMASTER_ADDRESS as `0x${string}`,
+          paymasterData: "0x" as Hex,
+          paymasterVerificationGasLimit: 120_000n,
+          paymasterPostOpGasLimit: 60_000n,
+        }),
+      }
+    : {};
 
   // Use local chain definition (Soneium Minato Fork)
   const rpcUrl = config.rpcUrl ?? "http://127.0.0.1:8545";
@@ -261,38 +283,11 @@ export async function createAlchemySmartAccountClient(config: {
     factoryAddress: ALCHEMY_MODULAR_ACCOUNT_FACTORY,
     validatorAddress: ALCHEMY_WEBAUTHN_VALIDATOR,
     ...config.passkeyParams,
+    ...pmMiddleware,
   } as any); // Cast to any to avoid complex type matching issues with custom params
 
-  // Inject paymaster fields for v0.7 (separate paymaster fields, not paymasterAndData)
   if (PAYMASTER_ADDRESS) {
-    const addPaymaster = (uo: any) => {
-      const withPm = {
-        ...uo,
-        // v0.7 fields
-        paymaster: PAYMASTER_ADDRESS as `0x${string}`,
-        paymasterData: "0x" as Hex,
-        paymasterVerificationGasLimit: 120_000n,
-        paymasterPostOpGasLimit: 60_000n,
-      };
-      // v0.6 fallback (some stacks still read paymasterAndData)
-      withPm.paymasterAndData = PAYMASTER_ADDRESS as Hex;
-      return withPm;
-    };
-
-    const origSend = smartAccountClient.sendUserOperation.bind(
-      smartAccountClient
-    );
-
-    smartAccountClient.sendUserOperation = async (args: any) => {
-      if ("uo" in args) {
-        console.debug("🧩 Injecting paymaster into UO (uo-key)", args.uo);
-        return origSend({ ...args, uo: addPaymaster(args.uo) });
-      }
-      console.debug("🧩 Injecting paymaster into UO (direct)", args);
-      return origSend(addPaymaster(args));
-    };
-
-    console.log(`✅ Paymaster injected: ${PAYMASTER_ADDRESS}`);
+    console.log(`✅ Paymaster middleware configured: ${PAYMASTER_ADDRESS}`);
   } else {
     console.warn("⚠️ Paymaster not configured - user must have ETH");
   }
