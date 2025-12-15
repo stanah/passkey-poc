@@ -26,8 +26,8 @@
     /* Path Aliases */
     "baseUrl": ".",
     "paths": {
-      "@lib/*": ["../src/lib/*"]
+      "@lib/*": ["src/lib/*"]
     }
   },
-  "include": ["src", "../src/lib"]
+  "include": ["src"]
 }
