@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {Script, console} from "forge-std/Script.sol";
-import {VerifyingPaymaster} from "../contracts/VerifyingPaymaster.sol";
+import {VerifyingPaymaster} from "../src/VerifyingPaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 
 contract DeployPaymaster is Script {
