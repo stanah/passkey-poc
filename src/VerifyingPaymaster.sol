@@ -10,7 +10,7 @@ import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOper
  * @notice シンプルな Paymaster - 全ての UserOperation を承認してガス代を支払う (テスト用)
  */
 contract VerifyingPaymaster is BasePaymaster {
-    constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {}
+    constructor(IEntryPoint _entryPoint, address owner) BasePaymaster(_entryPoint, owner) {}
 
     /**
      * @notice UserOperation の検証 - 常に承認を返す

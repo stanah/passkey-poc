@@ -14,8 +14,9 @@ contract DeployPaymaster is Script {
         
         vm.startBroadcast(deployerPrivateKey);
         
-        // Deploy Paymaster
-        VerifyingPaymaster paymaster = new VerifyingPaymaster(IEntryPoint(ENTRYPOINT));
+        // Deploy Paymaster (deployer becomes owner)
+        address deployer = vm.addr(deployerPrivateKey);
+        VerifyingPaymaster paymaster = new VerifyingPaymaster(IEntryPoint(ENTRYPOINT), deployer);
         console.log("Paymaster deployed at:", address(paymaster));
         
         // Deposit to EntryPoint
