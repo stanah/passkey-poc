@@ -1,12 +1,49 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 @import "tailwindcss";
-@config "../tailwind.config.js";
+
+@theme {
+  /* Colors */
+  --color-cute-pink: #ff7eb3;
+  --color-cute-blue: #5bbcff;
+  --color-cute-yellow: #fff5b1;
+  --color-cute-purple: #b07bff;
+  --color-cute-text: #5a4a6e;
+  --color-cute-bg: #fff9f9;
+
+  /* Border Radius */
+  --radius-3xl: 1.5rem;
+  --radius-blob: 2rem;
+
+  /* Font Family */
+  --font-cute: 'Nunito', sans-serif;
+
+  /* Animations */
+  --animate-bounce-slow: bounce 3s infinite;
+  --animate-wiggle: wiggle 1s ease-in-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-fadeIn: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 body {
   margin: 0;
   font-family: 'Nunito', sans-serif;
-  background-color: #fff9f9; /* cute-bg */
-  color: #5a4a6e; /* cute-text */
+  background-color: var(--color-cute-bg);
+  color: var(--color-cute-text);
 }
 
 @layer utilities {
@@ -14,3 +51,17 @@ body {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-purple-400;
   }
 }
+
+/* Fix button background color specificity issue */
+button.bg-cute-pink {
+  background-color: var(--color-cute-pink);
+}
+
+button.bg-cute-blue {
+  background-color: var(--color-cute-blue);
+}
+
+button.bg-cute-purple {
+  background-color: var(--color-cute-purple);
+}
+

@@ -7,10 +7,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        'cute-pink': '#ffd1dc',
-        'cute-blue': '#d1f7ff',
+        'cute-pink': '#ff7eb3',     // Brighter pink for better contrast
+        'cute-blue': '#5bbcff',     // Brighter blue
         'cute-yellow': '#fff5b1',
-        'cute-purple': '#e0d1ff',
+        'cute-purple': '#b07bff',   // Brighter purple
         'cute-text': '#5a4a6e',
         'cute-bg': '#fff9f9',
       },
