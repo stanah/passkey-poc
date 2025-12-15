@@ -265,13 +265,19 @@ export async function createAlchemySmartAccountClient(config: {
 
   // Inject paymaster fields for v0.7 (separate paymaster fields, not paymasterAndData)
   if (PAYMASTER_ADDRESS) {
-    const addPaymaster = (uo: any) => ({
-      ...uo,
-      paymaster: PAYMASTER_ADDRESS as `0x${string}`,
-      paymasterData: "0x" as Hex,
-      paymasterVerificationGasLimit: 120_000n,
-      paymasterPostOpGasLimit: 60_000n,
-    });
+    const addPaymaster = (uo: any) => {
+      const withPm = {
+        ...uo,
+        // v0.7 fields
+        paymaster: PAYMASTER_ADDRESS as `0x${string}`,
+        paymasterData: "0x" as Hex,
+        paymasterVerificationGasLimit: 120_000n,
+        paymasterPostOpGasLimit: 60_000n,
+      };
+      // v0.6 fallback (some stacks still read paymasterAndData)
+      withPm.paymasterAndData = PAYMASTER_ADDRESS as Hex;
+      return withPm;
+    };
 
     const origSend = smartAccountClient.sendUserOperation.bind(
       smartAccountClient
@@ -279,8 +285,10 @@ export async function createAlchemySmartAccountClient(config: {
 
     smartAccountClient.sendUserOperation = async (args: any) => {
       if ("uo" in args) {
+        console.debug("🧩 Injecting paymaster into UO (uo-key)", args.uo);
         return origSend({ ...args, uo: addPaymaster(args.uo) });
       }
+      console.debug("🧩 Injecting paymaster into UO (direct)", args);
       return origSend(addPaymaster(args));
     };
 
