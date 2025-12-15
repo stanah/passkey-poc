@@ -192,12 +192,24 @@ export function createBundlerClient(bundlerUrl: string) {
  * Create a complete smart account client with bundler integration
  */
 import { createModularAccountV2Client } from "@account-kit/smart-contracts";
+import { split } from "@aa-sdk/core";
 
 import { z } from "zod";
 import {
   ALCHEMY_MODULAR_ACCOUNT_FACTORY,
   ALCHEMY_WEBAUTHN_VALIDATOR,
 } from "./constants.js";
+
+/**
+ * Bundler methods that should be routed to the bundler RPC
+ */
+const BUNDLER_METHODS = [
+  "eth_sendUserOperation",
+  "eth_estimateUserOperationGas",
+  "eth_getUserOperationReceipt",
+  "eth_getUserOperationByHash",
+  "eth_supportedEntryPoints",
+];
 
 /**
  * Create a complete smart account client using Alchemy SDK
@@ -208,29 +220,43 @@ import {
 export async function createAlchemySmartAccountClient(config: {
   passkeyParams: {
     credential: { id: string; publicKey: Hex };
-    getFn: (params: { hash: Hex }) => Promise<any>;
+    getFn?: (options?: CredentialRequestOptions) => Promise<Credential | null>;
     rpId: string;
   };
   bundlerUrl: string;
+  rpcUrl?: string; // Optional, defaults to local Anvil
 }) {
   // Use local chain definition (Soneium Minato Fork)
+  const rpcUrl = config.rpcUrl ?? "http://127.0.0.1:8545";
+  const bundlerUrl = config.bundlerUrl;
+
   const chain = {
     ...tenderlyChain,
     id: 1946, // Soneium Minato
     name: "Soneium Minato (Fork)",
     rpcUrls: {
-      default: { http: ["http://127.0.0.1:8545"] },
+      default: { http: [rpcUrl] },
     },
   };
 
-  const transport = http(config.bundlerUrl);
+  // Use split transport to route bundler methods to Rundler
+  // and other methods (state reads, etc.) to Anvil
+  const transport = split({
+    overrides: [
+      {
+        methods: BUNDLER_METHODS,
+        transport: http(bundlerUrl),
+      },
+    ],
+    fallback: http(rpcUrl),
+  });
 
   const smartAccountClient = await createModularAccountV2Client({
     chain,
     transport,
     mode: "webauthn",
     factoryAddress: ALCHEMY_MODULAR_ACCOUNT_FACTORY,
-    validatorAddress: ALCHEMY_WEBAUTHN_VALIDATOR,   
+    validatorAddress: ALCHEMY_WEBAUTHN_VALIDATOR,
     ...config.passkeyParams,
   } as any); // Cast to any to avoid complex type matching issues with custom params
 

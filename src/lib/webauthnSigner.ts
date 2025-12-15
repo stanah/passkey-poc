@@ -76,54 +76,67 @@ function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
 }
 
 /**
- * Extract P-256 public key coordinates from COSE key
- * COSE key format: https://www.rfc-editor.org/rfc/rfc8152.html
+ * Extract P-256 public key coordinates from SPKI DER key
+ * The browser's getPublicKey() returns SubjectPublicKeyInfo (SPKI) in DER format
  */
-function extractP256PublicKey(credentialPublicKey: ArrayBuffer): {
+function extractP256PublicKey(spkiBuffer: ArrayBuffer): {
   x: Hex;
   y: Hex;
 } {
-  // The public key is in COSE format
-  // For P-256, the key contains:
-  // - kty (key type): 2 (EC)
-  // - alg (algorithm): -7 (ES256)
-  // - crv (curve): 1 (P-256)
-  // - x: 32 bytes
-  // - y: 32 bytes
+  const bytes = new Uint8Array(spkiBuffer);
+  // console.log("Raw SPKI Buffer:", arrayBufferToHex(spkiBuffer));
 
-  const bytes = new Uint8Array(credentialPublicKey);
-
-  // Simple CBOR parsing for COSE_Key
-  // This is a simplified parser that works for P-256 keys
-  // Full implementation would need a proper CBOR library
-
-  // Find x and y coordinates in the COSE structure
-  // The x coordinate is typically at offset after the CBOR map header
-  // For a standard P-256 COSE key, the structure is predictable
-
-  // Look for the -2 (x) and -3 (y) keys in CBOR
-  let xStart = -1;
-  let yStart = -1;
-
-  for (let i = 0; i < bytes.length - 32; i++) {
-    // -2 in CBOR is encoded as 0x21
-    if (bytes[i] === 0x21 && bytes[i + 1] === 0x58 && bytes[i + 2] === 0x20) {
-      xStart = i + 3;
-    }
-    // -3 in CBOR is encoded as 0x22
-    if (bytes[i] === 0x22 && bytes[i + 1] === 0x58 && bytes[i + 2] === 0x20) {
-      yStart = i + 3;
-    }
+  // P-256 SPKI Header often starts with:
+  // 30 59 30 13 06 07 2a 86 48 ce 3d 02 01 06 08 2a 86 48 ce 3d 03 01 07 03 42 00 04
+  // But we should confirm valid SPKI structure
+  
+  // Minimal parser to find the Bit String containing the key
+  // 1. SEQUENCE (30)
+  // 2. ... AlgorithmIdentifier ...
+  // 3. BIT STRING (03) - The public key
+  
+  // Find the last BIT STRING (tag 0x03)
+  // In P-256 SPKI, the key is the last element
+  let offset = 0;
+  if (bytes[offset++] !== 0x30) throw new Error("Invalid SPKI: Not a Sequence");
+  
+  // Skip Sequence Length
+  let len = bytes[offset++];
+  if (len & 0x80) offset += (len & 0x7f); // Multi-byte length
+  
+  // Inside the sequence...
+  // Skip to the Bit String (0x03) that usually appears at the end
+  // A robust way for fixed P-256 is to look for the key body 0x04 followed by 64 bytes at the end
+  
+  // P-256 public key is 65 bytes: 0x04 (uncompressed) + 32 bytes X + 32 bytes Y
+  // It is wrapped in a Bit String: 0x03 <Len> 0x00 <Key>
+  // <Len> should be 66 (0x42) -> 1 pad byte + 65 key bytes
+  
+  // Scan for 0x03 0x42 0x00 0x04
+  let keyStart = -1;
+  for(let i=0; i<bytes.length - 67; i++) {
+      if (bytes[i] === 0x03 && bytes[i+1] === 0x42 && bytes[i+2] === 0x00 && bytes[i+3] === 0x04) {
+          keyStart = i + 4; // Skip tag, len, unused_bits, compression_byte
+          break;
+      }
   }
-
-  if (xStart === -1 || yStart === -1) {
-    throw new Error("Could not extract P-256 public key coordinates from COSE");
+  
+  if (keyStart === -1) {
+      // Fallback: check fixed offset 27 if header is standard 26 bytes
+      if (bytes.length === 91 && bytes[26] === 0x04) {
+          keyStart = 27;
+      } else {
+        throw new Error("Could not locate P-256 public key in SPKI");
+      }
   }
-
-  const x = arrayBufferToHex(bytes.slice(xStart, xStart + 32).buffer);
-  const y = arrayBufferToHex(bytes.slice(yStart, yStart + 32).buffer);
-
-  return { x, y };
+  
+  const xBytes = bytes.slice(keyStart, keyStart + 32);
+  const yBytes = bytes.slice(keyStart + 32, keyStart + 64);
+  
+  return { 
+      x: arrayBufferToHex(xBytes.buffer), 
+      y: arrayBufferToHex(yBytes.buffer) 
+  };
 }
 
 /**
@@ -393,49 +406,34 @@ export const credentialStorage = {
 
 /**
  * Creates parameters for Alchemy Modular Account WebAuthn mode
+ * Uses the correct getFn signature expected by viem/ox
  */
 export async function createAlchemyWebAuthnParams(
   credentialKey: string
 ): Promise<{
     credential: { id: string; publicKey: Hex };
-    getFn: (params: { hash: Hex }) => Promise<{
-        signature: Hex;
-        authenticatorData: Hex;
-        clientDataJSON: string;
-        response: any;
-    }>;
+    getFn: (options?: CredentialRequestOptions) => Promise<Credential | null>;
     rpId: string;
 } | null> {
-  const credential = credentialStorage.load(credentialKey);
-  if (!credential) return null; // Or throw
+  const storedCredential = credentialStorage.load(credentialKey);
+  if (!storedCredential) return null;
 
   return {
     credential: {
-      id: credential.credentialId,
+      id: storedCredential.credentialId,
       publicKey: encodePacked(
-          ["uint256", "uint256"], 
-          [BigInt(credential.publicKey.x), BigInt(credential.publicKey.y)]
+          ["uint256", "uint256"],
+          [BigInt(storedCredential.publicKey.x), BigInt(storedCredential.publicKey.y)]
       ),
     },
-    getFn: async ({ hash }: { hash: Hex }) => {
-      const sig = await signWithPasskey(credential, hash);
-      
-      // Return format expected by Viem/Alchemy for WebAuthn
-      return {
-          signature: encodePacked(
-            ["uint256", "uint256"], 
-            [BigInt(sig.signature.r), BigInt(sig.signature.s)]
-          ),
-          authenticatorData: sig.authenticatorData,
-          clientDataJSON: sig.clientDataJSON,
-          response: {
-              authenticatorData: hexToBytes(sig.authenticatorData),
-              clientDataJSON: new TextEncoder().encode(sig.clientDataJSON),
-              signature: hexToBytes(encodePacked(["uint256", "uint256"], [BigInt(sig.signature.r), BigInt(sig.signature.s)])),
-              userHandle: credential.userHandle ? hexToBytes(credential.userHandle as Hex) : new Uint8Array(),
-          }
-      };
+    // getFn is called by viem with the same signature as navigator.credentials.get
+    // We just pass through to the browser's WebAuthn API
+    getFn: async (options?: CredentialRequestOptions): Promise<Credential | null> => {
+      if (!navigator.credentials) {
+        throw new Error("WebAuthn is not supported in this browser");
+      }
+      return navigator.credentials.get(options);
     },
-    rpId: credential.rpId,
+    rpId: storedCredential.rpId,
   };
 }

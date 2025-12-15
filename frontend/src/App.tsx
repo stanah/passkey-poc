@@ -81,22 +81,23 @@ export default function App() {
     try {
       setLoading(true);
       setTxHash(null);
-      console.log("Sending UserOp...");
+      setError(null);
 
-      // Example UserOp: Send 0 ETH to self
+      // Use a different target address (not self) to ensure execute() is called
+      // When target === account address, the SDK skips wrapping in execute()
+      const targetAddress = "0x0000000000000000000000000000000000000001" as `0x${string}`;
+
+      // Send UserOp: 0 ETH to target address
       const userOpResult = await smartAccount.sendUserOperation({
         uo: {
-          target: address as `0x${string}`,
+          target: targetAddress,
           data: "0x",
           value: 0n,
         },
       });
 
-      console.log("UserOp Sent, Hash:", userOpResult.hash);
       const hash = await smartAccount.waitForUserOperationTransaction(userOpResult);
-      
       setTxHash(hash);
-      console.log("Transaction Mined:", hash);
 
     } catch (err: any) {
       console.error("Tx Failed:", err);
@@ -147,7 +148,7 @@ export default function App() {
                 <button
                 onClick={handleLogin}
                 disabled={loading}
-                 className="flex-1 bg-cute-blue text-white border-2 border-black p-3 rounded-xl text-lg font-bold shadow-md hover:-translate-y-1 active:translate-y-0 transition-transform disabled:opacity-50"
+                className="flex-1 bg-cute-blue text-white border-2 border-black p-3 rounded-xl text-lg font-bold shadow-md hover:-translate-y-1 active:translate-y-0 transition-transform disabled:opacity-50"
                 >
                 Login 🔑
                 </button>
