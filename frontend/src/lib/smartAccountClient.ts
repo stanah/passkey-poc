@@ -226,6 +226,9 @@ export async function createAlchemySmartAccountClient(config: {
   bundlerUrl: string;
   rpcUrl?: string; // Optional, defaults to local Anvil
 }) {
+  const PAYMASTER_ADDRESS = import.meta.env
+    .VITE_PAYMASTER_ADDRESS as `0x${string}` | undefined;
+
   // Use local chain definition (Soneium Minato Fork)
   const rpcUrl = config.rpcUrl ?? "http://127.0.0.1:8545";
   const bundlerUrl = config.bundlerUrl;
@@ -259,6 +262,32 @@ export async function createAlchemySmartAccountClient(config: {
     validatorAddress: ALCHEMY_WEBAUTHN_VALIDATOR,
     ...config.passkeyParams,
   } as any); // Cast to any to avoid complex type matching issues with custom params
+
+  // Inject paymaster fields for v0.7 (separate paymaster fields, not paymasterAndData)
+  if (PAYMASTER_ADDRESS) {
+    const addPaymaster = (uo: any) => ({
+      ...uo,
+      paymaster: PAYMASTER_ADDRESS as `0x${string}`,
+      paymasterData: "0x" as Hex,
+      paymasterVerificationGasLimit: 120_000n,
+      paymasterPostOpGasLimit: 60_000n,
+    });
+
+    const origSend = smartAccountClient.sendUserOperation.bind(
+      smartAccountClient
+    );
+
+    smartAccountClient.sendUserOperation = async (args: any) => {
+      if ("uo" in args) {
+        return origSend({ ...args, uo: addPaymaster(args.uo) });
+      }
+      return origSend(addPaymaster(args));
+    };
+
+    console.log(`✅ Paymaster injected: ${PAYMASTER_ADDRESS}`);
+  } else {
+    console.warn("⚠️ Paymaster not configured - user must have ETH");
+  }
 
   return {
     smartAccountClient,
