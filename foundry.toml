@@ -7,7 +7,8 @@ solc = "0.8.23"
 remappings = [
   "account-abstraction/=lib/account-abstraction/contracts/",
   "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-  "forge-std/=lib/forge-std/src/"
+  "forge-std/=lib/forge-std/src/",
+  "@modular-account/=lib/modular-account/src/"
 ]
 
 [rpc_endpoints]

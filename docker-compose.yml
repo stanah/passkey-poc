@@ -17,7 +17,7 @@ services:
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
     entrypoint: ["anvil"]
-    command: --host 0.0.0.0 --chain-id 31337 ${ANVIL_ARGS}
+    command: --fork-url ${ANVIL_FORK_URL} --chain-id 1946 --host 0.0.0.0 --port 8545 --block-time 1
     ports:
       - "8545:8545"
     restart: unless-stopped
@@ -34,7 +34,7 @@ services:
       - anvil
     environment:
       - RUST_LOG=info
-      - CHAIN_ID=31337
+      - CHAIN_ID=1946
       - NODE_HTTP=http://anvil:8545
       - SIGNER_PRIVATE_KEYS=${BUNDLER_PRIVATE_KEY}
       - DISABLE_ENTRY_POINT_V0_6=true
